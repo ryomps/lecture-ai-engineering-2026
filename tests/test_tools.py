@@ -46,3 +46,22 @@ def test_default_question_of_lecture1_is_answerable_from_glossary():
     assert "3レベル" in DEFAULT_QUESTION
     hits = json.loads(tools.search_glossary("3レベル"))
     assert hits[0]["term"] == "宿題の3レベル"
+
+
+def test_make_quiz():
+    quiz = json.loads(tools.make_quiz(2))
+    assert quiz["lecture"] == 2
+    assert quiz["term"]
+    assert quiz["answer"]
+    assert "見つかりませんでした" in tools.make_quiz(99)
+
+
+def test_save_learning_log(tmp_path, monkeypatch):
+    monkeypatch.setattr(tools, "LEARNING_LOG_DIR", tmp_path / "learning_log")
+    msg = tools.save_learning_log("LoRA", "低ランク行列で効率よく追加学習する手法")
+    assert "保存しました" in msg
+    files = list((tmp_path / "learning_log").glob("*_LoRA.md"))
+    assert len(files) == 1
+    content = files[0].read_text(encoding="utf-8")
+    assert "# LoRA" in content
+    assert "低ランク行列で効率よく追加学習する手法" in content

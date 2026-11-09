@@ -5,10 +5,14 @@
 """
 
 import json
+import random
+import re
+from datetime import datetime
 from functools import cache
 from pathlib import Path
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+LEARNING_LOG_DIR = Path(__file__).resolve().parent.parent / "learning_log"
 MAX_RESULTS = 3
 
 
@@ -77,3 +81,42 @@ def get_lecture_summary(lecture: int) -> str:
         available = sorted(p.stem for p in (DATA_DIR / "lectures").glob("*.md"))
         return f"第{lecture}回の要点はまだありません。用意されている回: {', '.join(available)}"
     return path.read_text(encoding="utf-8")
+
+
+def make_quiz(lecture: int) -> str:
+    """指定した回（1始まりの整数）の用語から1つを選び、確認問題と答えを返す。
+
+    「第2回の内容から確認問題を出して」「理解度を確かめたい」など、
+    特定の回の復習クイズや確認問題を出してほしいと頼まれたときに使う。
+    """
+    terms = [e for e in load_glossary() if e["lecture"] == lecture]
+    if not terms:
+        available = sorted({str(e["lecture"]) for e in load_glossary()})
+        return f"第{lecture}回の用語は見つかりませんでした。用意されている回: {', '.join(available)}"
+    chosen = random.choice(terms)
+    return json.dumps(
+        {
+            "lecture": lecture,
+            "question": f"第{lecture}回の用語「{chosen['term']}」とは何ですか？",
+            "term": chosen["term"],
+            "answer": chosen["definition"],
+            "related": chosen["related"],
+        },
+        ensure_ascii=False,
+    )
+
+
+def save_learning_log(topic: str, content: str) -> str:
+    """学習した内容やメモを learning_log/ フォルダにMarkdownファイルとして保存する。
+
+    利用者から「学習記録を保存して」「今日学んだことをメモに残して」など、
+    学習ログの記録・保存を依頼されたときに使う。
+    topic には学習したテーマや用語名（例: "LoRA"）、content には記録する内容を入れる。
+    """
+    LEARNING_LOG_DIR.mkdir(parents=True, exist_ok=True)
+    safe_topic = re.sub(r'[\\/*?:"<>|\s]+', "_", topic.strip()) or "log"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    path = LEARNING_LOG_DIR / f"{timestamp}_{safe_topic}.md"
+    body = f"# {topic}\n\n- 記録日時: {datetime.now().isoformat(timespec='seconds')}\n\n{content}\n"
+    path.write_text(body, encoding="utf-8")
+    return f"学習記録を {path.relative_to(LEARNING_LOG_DIR.parent)} に保存しました。"
